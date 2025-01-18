@@ -1,0 +1,92 @@
+name: deployment
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch: {}
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        platform:
+          - linux/arm64
+
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Prepare
+        run: |
+          platform=${{ matrix.platform }}
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Configure AWS credentials from IAM Role
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_KEY }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Generate .env file
+        run: |
+          echo "VITE_API_URL=${{ vars.DEV_VITE_API_URL }}" >> .env
+
+      - name: Install dependencies
+        run: |
+          npm ci
+
+      - name: Build React Router v7 App
+        run: |
+          npm run build
+
+     # Login to Amazon ECR
+      - uses: aws-actions/amazon-ecr-login@v2.0.1
+        id: login-ecr
+
+     # for Docker cross platform build
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: ${{ matrix.platform }}
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Set up ECR metadata
+        id: meta
+        uses: docker/metadata-action@v5.3.0
+        with:
+          images: |
+            ${{ secrets.AWS_ECR_IMAGE_URI }}
+          tags: |
+            value=latest
+
+      - name: Build docker image and push to ECR
+        uses: docker/build-push-action@v5.1.0
+        with:
+          context: .
+          platforms: ${{ matrix.platform }}
+          file: ./Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          # cache-from: type=gha
+          # cache-to: type=gha,mode=max
+          provenance: false
+
+      - name: Upload only static files to S3
+        run: |
+          aws s3 sync ./build/client s3://${{ vars.AWS_S3_BUCKET_NAME }} --delete
+
+      - name: Update Lambda function with Latest Image
+        run: |
+          aws lambda update-function-code --function-name ${{ vars.AWS_LAMBDA_APP_NAME }} --image-uri ${{ secrets.AWS_ECR_IMAGE_URI }}
