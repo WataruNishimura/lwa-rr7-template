@@ -14,7 +14,7 @@ resource "aws_cloudfront_function" "basicauth" {
 }
 
 resource "aws_cloudfront_cache_policy" "lambda_origin" {
-  name        = "cache_policy_lambda_origin" + "_" +  var.env
+  name        = "lambda_origin_cache_policy_${var.env}"
   min_ttl     = 1
   max_ttl     = 100
   default_ttl = 50
@@ -32,14 +32,14 @@ resource "aws_cloudfront_cache_policy" "lambda_origin" {
 }
 
 resource "aws_cloudfront_origin_access_control" "lambda_origin" {
-  name                              = "oac_lambda_" + var.env
+  name                              = "oac_lambda_${var.env}" 
   signing_protocol                  = "sigv4"
   signing_behavior                  = "always"
   origin_access_control_origin_type = "lambda"
 }
 
 resource "aws_cloudfront_origin_access_control" "s3_origin" {
-  name                              = "oac_s3_" + var.env
+  name                              = "oac_s3_${var.env}"
   signing_protocol                  = "sigv4"
   signing_behavior                  = "always"
   origin_access_control_origin_type = "s3"
