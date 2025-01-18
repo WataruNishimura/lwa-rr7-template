@@ -10,7 +10,7 @@ module "cloudfront" {
   # This is insecure. You must not hardcode the password.
   basicauth_username  = "username"
   basicauth_password  = "password"
-  aliases             = ["lwa-rr7.n13u.mem"]
+  aliases             = ["lwa-rr7.n13u.me"]
   acm_certificate_arn = module.acm_certificate.arn
   lambda_origin_domain_name = module.lambda.function_url
 }
